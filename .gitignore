@@ -1,0 +1,13 @@
+.tools/
+web/node_modules/
+web/dist/
+data/
+shared/
+*.exe
+*.log
+.DS_Store
+
+
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
