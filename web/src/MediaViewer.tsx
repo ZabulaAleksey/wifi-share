@@ -23,9 +23,10 @@ type Props = {
   file: FileItem;
   source: string;
   onClose: () => void;
+  onEnded: () => void;
 };
 
-export function MediaViewer({ file, source, onClose }: Props) {
+export function MediaViewer({ file, source, onClose, onEnded }: Props) {
   const player = useRef<MediaPlayerInstance>(null);
   const isVideo = file.mime.startsWith("video/");
 
@@ -57,6 +58,7 @@ export function MediaViewer({ file, source, onClose }: Props) {
         autoPlay
         playsInline
         onPlay={() => channel?.postMessage({ type: "playing", tabId })}
+        onEnded={onEnded}
       >
         <MediaProvider />
         {isVideo ? (

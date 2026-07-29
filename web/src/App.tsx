@@ -51,6 +51,10 @@ export function App() {
     onSuccess: () => queryClient.setQueryData(["auth"], { authenticated: false }),
   });
 
+  const mediaQueue = useMemo(() => (listing.data?.files ?? []).filter((item) =>
+    item.kind === "file" && (item.mime.startsWith("audio/") || item.mime.startsWith("video/")),
+  ), [listing.data]);
+
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (listing.data?.files ?? []).filter((item) =>
@@ -176,7 +180,10 @@ export function App() {
         </section>
       </main>
 
-      {activeMedia && <MediaViewer file={activeMedia} source={api.content(activeMedia.id)} onClose={() => setActiveMedia(null)} />}
+      {activeMedia && <MediaViewer file={activeMedia} source={api.content(activeMedia.id)} onClose={() => setActiveMedia(null)} onEnded={() => {
+        const index = mediaQueue.findIndex((item) => item.id === activeMedia.id);
+        if (index >= 0 && index + 1 < mediaQueue.length) setActiveMedia(mediaQueue[index + 1]);
+      }} />}
       {loginOpen && <LoginDialog onClose={() => setLoginOpen(false)} onSuccess={() => {
         queryClient.setQueryData(["auth"], { authenticated: true });
         setLoginOpen(false);

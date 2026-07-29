@@ -33,6 +33,7 @@ type Config struct {
 type App struct {
 	config   Config
 	root     string
+	rootM    sync.RWMutex
 	db       *sql.DB
 	server   *http.Server
 	handler  http.Handler
@@ -377,15 +378,18 @@ func (a *App) remove(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) resolve(id string) (string, string, error) {
+	a.rootM.RLock()
+	root := a.root
+	a.rootM.RUnlock()
 	rel, err := decodeID(id)
 	if err != nil {
 		return "", "", err
 	}
-	candidate := filepath.Clean(filepath.Join(a.root, rel))
-	if !within(a.root, candidate) {
+	candidate := filepath.Clean(filepath.Join(root, rel))
+	if !within(root, candidate) {
 		return "", "", errors.New("path escapes the shared directory")
 	}
-	if evaluated, err := filepath.EvalSymlinks(candidate); err == nil && !within(a.root, evaluated) {
+	if evaluated, err := filepath.EvalSymlinks(candidate); err == nil && !within(root, evaluated) {
 		return "", "", errors.New("symbolic link escapes the shared directory")
 	}
 	return candidate, rel, nil

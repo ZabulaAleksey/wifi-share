@@ -40,6 +40,15 @@ func loadLocalConfig(path string) (localConfig, error) {
 	return config, nil
 }
 
+func saveLocalConfig(path string, config localConfig) error {
+	raw, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+	raw = append(raw, byte(10))
+	return os.WriteFile(path, raw, 0o600)
+}
+
 func accessURLs(address string) []string {
 	_, port, err := net.SplitHostPort(address)
 	if err != nil {

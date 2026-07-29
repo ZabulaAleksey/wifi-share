@@ -34,7 +34,5 @@ func main() {
 	for _, address := range accessURLs(*address) {
 		log.Printf("  %s", address)
 	}
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
+	runApplication(server, config, accessURLs(*address))
 }
