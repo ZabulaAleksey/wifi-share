@@ -39,3 +39,4 @@ go build -o wifi-share.exe ./cmd/wifi-share
 После сборки интерфейс и API доступны на `http://localhost:8080`.
 
 Архитектурные решения находятся в [ARCHITECTURE.mdx](./ARCHITECTURE.mdx).
+# wifi-share
