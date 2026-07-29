@@ -27,7 +27,7 @@ export function App() {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const current = crumbs.at(-1)!;
+  const current = crumbs[crumbs.length - 1];
 
   const listing = useQuery({
     queryKey: ["files", current.id],
@@ -77,8 +77,10 @@ export function App() {
 
   async function uploadFiles(fileList: FileList) {
     const files = Array.from(fileList);
-    const pending = files.map((file) => ({
-      id: crypto.randomUUID(), name: file.name, percent: 0,
+    const pending = files.map((file, index) => ({
+      id: globalThis.crypto?.randomUUID?.()
+        ?? `upload-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+      name: file.name, percent: 0,
       status: "uploading" as const,
     }));
     setUploads((currentItems) => [...currentItems, ...pending]);
@@ -228,6 +230,9 @@ function FileIcon({ item }: { item: FileItem }) {
   if (item.mime.startsWith("text/") || item.mime.includes("pdf")) return <span className="file-icon text"><FileText /></span>;
   return <span className="file-icon"><File /></span>;
 }
-function labelFor(item: FileItem) { return item.kind === "folder" ? "Папка" : item.name.split(".").at(-1)?.toUpperCase() || "Файл"; }
+function labelFor(item: FileItem) {
+  const parts = item.name.split(".");
+  return item.kind === "folder" ? "Папка" : parts[parts.length - 1]?.toUpperCase() || "Файл";
+}
 function formatDate(value: string) { return new Intl.DateTimeFormat("ru", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)); }
 function formatBytes(value: number) { if (!value) return "0 Б"; const units = ["Б", "КБ", "МБ", "ГБ", "ТБ"]; const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1); return `${(value / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`; }

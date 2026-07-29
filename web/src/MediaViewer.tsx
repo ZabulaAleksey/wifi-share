@@ -13,8 +13,11 @@ import {
 import { X } from "lucide-react";
 import type { FileItem } from "./api";
 
-const channel = new BroadcastChannel("wifi-share-media");
-const tabId = crypto.randomUUID();
+const channel = typeof BroadcastChannel === "undefined"
+  ? null
+  : new BroadcastChannel("wifi-share-media");
+const tabId = globalThis.crypto?.randomUUID?.()
+  ?? `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 type Props = {
   file: FileItem;
@@ -32,8 +35,8 @@ export function MediaViewer({ file, source, onClose }: Props) {
         player.current?.pause();
       }
     };
-    channel.addEventListener("message", stopOtherPlayer);
-    return () => channel.removeEventListener("message", stopOtherPlayer);
+    channel?.addEventListener("message", stopOtherPlayer);
+    return () => channel?.removeEventListener("message", stopOtherPlayer);
   }, []);
 
   return (
@@ -53,7 +56,7 @@ export function MediaViewer({ file, source, onClose }: Props) {
         title={file.name}
         autoPlay
         playsInline
-        onPlay={() => channel.postMessage({ type: "playing", tabId })}
+        onPlay={() => channel?.postMessage({ type: "playing", tabId })}
       >
         <MediaProvider />
         {isVideo ? (
