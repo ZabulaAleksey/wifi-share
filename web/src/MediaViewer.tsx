@@ -49,8 +49,9 @@ export function MediaViewer({ file, source, onClose }: Props) {
       </div>
       <MediaPlayer
         ref={player}
-        src={{ src: source, type: file.mime } as MediaSrc}
+        src={{ src: source, type: file.mime } as MediaSrc }
         title={file.name}
+        autoPlay
         playsInline
         onPlay={() => channel.postMessage({ type: "playing", tabId })}
       >

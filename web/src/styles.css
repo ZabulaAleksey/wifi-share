@@ -23,6 +23,7 @@ button { color: inherit; }
   background: #091310; border-right: 1px solid var(--line); display: flex; flex-direction: column;
 }
 .brand { display: flex; gap: 12px; align-items: center; padding: 0 8px 34px; }
+.brand--button { width: 100%; color: inherit; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .brand__mark {
   width: 39px; height: 39px; border-radius: 13px; display: grid; place-items: center;
   color: #07100e; background: var(--accent); box-shadow: 0 7px 24px rgba(128, 229, 188, 0.18);
@@ -141,3 +142,30 @@ media-player { --media-brand: #80e5bc; border-radius: 11px; overflow: hidden; }
   .file-row time, .file-size { display: none; }
 }
 
+
+.topbar__logout { border: 1px solid var(--line); background: var(--surface); }
+.readonly-notice { margin-top: 22px; padding: 11px 14px; display: flex; align-items: center; gap: 9px; color: #aebdb7; background: rgba(128,229,188,.055); border: 1px solid rgba(128,229,188,.12); border-radius: 11px; font-size: 12px; }
+.modal-backdrop { position: fixed; z-index: 80; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(2,8,6,.72); backdrop-filter: blur(8px); }
+.login-card { position: relative; width: min(100%, 390px); padding: 32px; display: flex; flex-direction: column; align-items: stretch; background: #101d19; border: 1px solid var(--line); box-shadow: 0 24px 80px rgba(0,0,0,.55); border-radius: 20px; }
+.login-card__close { position: absolute; right: 14px; top: 14px; }
+.login-card__icon { width: 46px; height: 46px; margin-bottom: 20px; display: grid; place-items: center; color: var(--accent); background: var(--accent-dark); border-radius: 14px; }
+.login-card h2 { margin: 0; font-size: 27px; letter-spacing: -.035em; }
+.login-card p { margin: 9px 0 22px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.login-card input { height: 46px; margin-bottom: 10px; padding: 0 14px; color: white; background: #091411; border: 1px solid var(--line); border-radius: 11px; outline: 0; }
+.login-card input:focus { border-color: rgba(128,229,188,.5); }
+.login-card .button { justify-content: center; margin-top: 6px; }
+.form-error { color: #ff9189; font-size: 12px; }
+.upload-panel { position: fixed; z-index: 50; right: 22px; bottom: 22px; width: min(390px, calc(100vw - 28px)); max-height: 55vh; overflow: hidden; background: rgba(16,29,25,.98); border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.5); border-radius: 17px; }
+.upload-panel > header { padding: 14px 14px 12px 17px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.upload-panel > header div { display: grid; gap: 2px; }
+.upload-panel > header strong { font-size: 13px; }
+.upload-panel > header span { color: var(--muted); font-size: 10px; }
+.upload-panel__list { max-height: 40vh; overflow-y: auto; padding: 8px 14px 14px; }
+.upload-item { padding: 9px 2px; }
+.upload-item > div:first-child { display: flex; justify-content: space-between; gap: 15px; font-size: 11px; }
+.upload-item > div:first-child span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.upload-item > div:first-child strong { color: var(--accent); font-size: 10px; }
+.upload-item small { display: block; margin-top: 4px; color: #ff9189; }
+.progress { height: 4px; margin-top: 7px; overflow: hidden; background: #26342f; border-radius: 10px; }
+.progress i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .15s ease; }
+.progress--error i { background: #ff756c; }

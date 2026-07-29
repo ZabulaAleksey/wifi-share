@@ -8,10 +8,14 @@ import (
 )
 
 func main() {
-	address := flag.String("addr", ":8080", "HTTP listen address")
-	root := flag.String("root", "./shared", "directory exposed to connected devices")
-	data := flag.String("data", "./data", "application data directory")
-	web := flag.String("web", "./web/dist", "compiled web application directory")
+	config, err := loadLocalConfig("config.local.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	address := flag.String("addr", config.Address, "HTTP listen address")
+	root := flag.String("root", config.Root, "directory exposed to connected devices")
+	data := flag.String("data", config.Data, "application data directory")
+	web := flag.String("web", config.Web, "compiled web application directory")
 	flag.Parse()
 
 	server, err := app.New(app.Config{
@@ -19,13 +23,17 @@ func main() {
 		ShareDir: *root,
 		DataDir:  *data,
 		WebDir:   *web,
+		Password: config.Password,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer server.Close()
 
-	log.Printf("WiFi Share is available at http://localhost%s", *address)
+	log.Printf("WiFi Share is ready. Open one of these URLs:")
+	for _, address := range accessURLs(*address) {
+		log.Printf("  %s", address)
+	}
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}

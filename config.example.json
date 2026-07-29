@@ -1,0 +1,7 @@
+{
+  "address": ":8080",
+  "root": "C:\\Users\\Public\\Shared files",
+  "data": "./data",
+  "web": "./web/dist",
+  "password": "replace-with-a-strong-password"
+}

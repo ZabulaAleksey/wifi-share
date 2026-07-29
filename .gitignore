@@ -1,9 +1,11 @@
+config.local.json
 .tools/
 web/node_modules/
 web/dist/
 data/
 shared/
 *.exe
+*.exe~
 *.log
 .DS_Store
 

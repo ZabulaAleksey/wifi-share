@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -26,13 +27,18 @@ type Config struct {
 	ShareDir string
 	DataDir  string
 	WebDir   string
+	Password string
 }
 
 type App struct {
-	config Config
-	root   string
-	db     *sql.DB
-	server *http.Server
+	config   Config
+	root     string
+	db       *sql.DB
+	server   *http.Server
+	handler  http.Handler
+	sessions map[string]time.Time
+	sessionM sync.RWMutex
+	trashFn  func(string) error
 }
 
 type fileDTO struct {
@@ -46,6 +52,9 @@ type fileDTO struct {
 }
 
 func New(config Config) (*App, error) {
+	if strings.TrimSpace(config.Password) == "" {
+		return nil, errors.New("password is required; set it in config.local.json")
+	}
 	root, err := filepath.Abs(config.ShareDir)
 	if err != nil {
 		return nil, err
@@ -75,21 +84,29 @@ func New(config Config) (*App, error) {
 		return nil, fmt.Errorf("initialize sqlite: %w", err)
 	}
 
-	app := &App{config: config, root: root, db: db}
+	app := &App{
+		config: config, root: root, db: db,
+		sessions: make(map[string]time.Time),
+		trashFn:  moveToSystemTrash,
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", app.health)
+	mux.HandleFunc("GET /api/auth/status", app.authStatus)
+	mux.HandleFunc("POST /api/auth/login", app.login)
+	mux.HandleFunc("DELETE /api/auth/session", app.logout)
 	mux.HandleFunc("GET /api/files", app.listFiles)
-	mux.HandleFunc("POST /api/files/{id}/upload", app.upload)
-	mux.HandleFunc("POST /api/files/{id}/folders", app.createFolder)
+	mux.Handle("POST /api/files/{id}/upload", app.requireAuth(http.HandlerFunc(app.upload)))
+	mux.Handle("POST /api/files/{id}/folders", app.requireAuth(http.HandlerFunc(app.createFolder)))
 	mux.HandleFunc("GET /api/files/{id}/content", app.getContent)
-	mux.HandleFunc("PUT /api/files/{id}/content", app.putContent)
-	mux.HandleFunc("PATCH /api/files/{id}", app.rename)
-	mux.HandleFunc("DELETE /api/files/{id}", app.remove)
+	mux.Handle("PUT /api/files/{id}/content", app.requireAuth(http.HandlerFunc(app.putContent)))
+	mux.Handle("PATCH /api/files/{id}", app.requireAuth(http.HandlerFunc(app.rename)))
+	mux.Handle("DELETE /api/files/{id}", app.requireAuth(http.HandlerFunc(app.remove)))
 	mux.Handle("/", spaHandler(config.WebDir))
 
+	app.handler = securityHeaders(requestLog(mux))
 	app.server = &http.Server{
 		Addr:              config.Address,
-		Handler:           securityHeaders(requestLog(mux)),
+		Handler:           app.handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       90 * time.Second,
 	}
@@ -97,6 +114,8 @@ func New(config Config) (*App, error) {
 }
 
 func (a *App) Close() error { return a.db.Close() }
+
+func (a *App) Handler() http.Handler { return a.handler }
 
 func (a *App) ListenAndServe() error {
 	err := a.server.ListenAndServe()
@@ -349,17 +368,11 @@ func (a *App) remove(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	trash := filepath.Join(a.config.DataDir, "trash")
-	if err := os.MkdirAll(trash, 0o755); err != nil {
+	if err := a.trashFn(path); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	name := fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(path))
-	if err := os.Rename(path, filepath.Join(trash, name)); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	a.audit("trash", id, map[string]string{"trashName": name})
+	a.audit("recycle", id, map[string]string{"name": filepath.Base(path)})
 	w.WriteHeader(http.StatusNoContent)
 }
 
