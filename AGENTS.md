@@ -1,17 +1,17 @@
-# WiFi Share - local instructions
+# WiFi Share — локальные инструкции
 
-Before working here, read `~/codex-workspace/AGENTS.md`.
+Перед началом работы прочитай `~/codex-workspace/AGENTS.md`.
 
-## Project context
+## Контекст проекта
 
-- Local-network file sharing with a Go backend and a React/Vite frontend under `web/`.
-- Preserve path containment, authentication, safe media handling, and LAN-only assumptions at every filesystem or network boundary.
-- `config.local.json`, shared data, passwords, and local paths remain untracked; update `config.example.json` only with safe placeholders.
-- Do not edit generated executables or frontend build output manually.
+- Обмен файлами в локальной сети с backend на Go и frontend на React/Vite в каталоге `web/`.
+- На каждой границе файловой системы или сети сохраняй проверку нахождения пути в разрешённой области, аутентификацию, безопасную обработку медиафайлов и допущения о работе только в LAN.
+- `config.local.json`, общие данные, пароли и локальные пути должны оставаться неотслеживаемыми; обновляй `config.example.json` только безопасными заполнителями.
+- Не редактируй вручную сгенерированные исполняемые файлы или результат сборки frontend.
 
-## Checks
+## Проверки
 
 - Backend: `go test ./...`
-- Frontend: from `web/`, run `npm run lint` and `npm run build`
+- Frontend: из каталога `web/` выполни `npm run lint` и `npm run build`
 
-Read only the relevant architecture/security document and AI Dev Team rule; do not preload all rules, SPEC files, or `LEARNING_LOG.md`.
+Читай только относящиеся к задаче документы по архитектуре и безопасности и правила AI Dev Team; не загружай заранее все правила, файлы SPEC или `LEARNING_LOG.md`.
