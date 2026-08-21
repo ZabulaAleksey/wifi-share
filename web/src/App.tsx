@@ -33,6 +33,7 @@ export function App() {
     queryKey: ["files", current.id],
     queryFn: () => api.list(current.id),
   });
+  const network = useQuery({ queryKey: ["health"], queryFn: api.health });
   const auth = useQuery({ queryKey: ["auth"], queryFn: api.authStatus });
   const authenticated = auth.data?.authenticated ?? false;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["files", current.id] });
@@ -132,7 +133,7 @@ export function App() {
         </nav>
         <div className="connection-card">
           <span className="connection-card__pulse" />
-          <div><strong>Сервер доступен</strong><span>{window.location.host}</span></div>
+          <div><strong>Сервер доступен</strong><span>{network.data?.address ?? window.location.host}</span></div>
         </div>
       </aside>
 

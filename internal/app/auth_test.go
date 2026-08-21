@@ -13,7 +13,7 @@ func newTestApp(t *testing.T) *App {
 	t.Helper()
 	base := t.TempDir()
 	instance, err := New(Config{
-		Address:  "127.0.0.1:0",
+		Address:  "127.0.0.1:8080",
 		ShareDir: filepath.Join(base, "shared"),
 		DataDir:  filepath.Join(base, "data"),
 		WebDir:   filepath.Join(base, "web"),
@@ -74,6 +74,7 @@ func TestAuthenticatedUserCanCreateFolder(t *testing.T) {
 	instance := newTestApp(t)
 	request := httptest.NewRequest(http.MethodPost, "/api/files/root/folders",
 		bytes.NewBufferString(`{"name":"Private"}`))
+	request.Header.Set("Origin", "http://example.com")
 	request.AddCookie(loginCookie(t, instance))
 	response := httptest.NewRecorder()
 
@@ -84,6 +85,65 @@ func TestAuthenticatedUserCanCreateFolder(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(instance.root, "Private")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMutationRejectsCrossOriginRequest(t *testing.T) {
+	instance := newTestApp(t)
+	request := httptest.NewRequest(http.MethodPost, "/api/files/root/folders",
+		bytes.NewBufferString(`{"name":"Private"}`))
+	request.Header.Set("Origin", "https://attacker.example")
+	request.AddCookie(loginCookie(t, instance))
+	response := httptest.NewRecorder()
+	instance.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMutationRejectsMissingOrigin(t *testing.T) {
+	instance := newTestApp(t)
+	request := httptest.NewRequest(http.MethodPost, "/api/files/root/folders",
+		bytes.NewBufferString(`{"name":"Private"}`))
+	request.AddCookie(loginCookie(t, instance))
+	response := httptest.NewRecorder()
+	instance.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestLogoutRequiresSameOrigin(t *testing.T) {
+	instance := newTestApp(t)
+	request := httptest.NewRequest(http.MethodDelete, "/api/auth/session", nil)
+	request.AddCookie(loginCookie(t, instance))
+	response := httptest.NewRecorder()
+	instance.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestLoginThrottlesRepeatedFailures(t *testing.T) {
+	loginAttemptStore.Lock()
+	loginAttemptStore.items = make(map[string]loginAttempts)
+	loginAttemptStore.Unlock()
+	instance := newTestApp(t)
+	for index := 0; index < maxLoginAttempts; index++ {
+		request := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"password":"wrong"}`))
+		request.RemoteAddr = "203.0.113.1:1234"
+		response := httptest.NewRecorder()
+		instance.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d expected 401, got %d", index, response.Code)
+		}
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"password":"correct horse battery staple"}`))
+	request.RemoteAddr = "203.0.113.1:1234"
+	response := httptest.NewRecorder()
+	instance.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", response.Code)
 	}
 }
 
@@ -100,6 +160,7 @@ func TestDeleteUsesSystemTrashAdapter(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodDelete,
 		"/api/files/"+encodeID("remove-me.txt"), nil)
+	request.Header.Set("Origin", "http://example.com")
 	request.AddCookie(loginCookie(t, instance))
 	response := httptest.NewRecorder()
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func (a *App) Shutdown(ctx context.Context) error {
@@ -12,19 +13,21 @@ func (a *App) Shutdown(ctx context.Context) error {
 }
 
 func (a *App) SetShareDir(path string) error {
-	root, err := filepath.Abs(path)
+	root, err := canonicalDirectory(path)
 	if err != nil {
 		return err
 	}
-	info, err := os.Stat(root)
-	if err != nil {
-		return fmt.Errorf("open shared directory: %w", err)
+	if pathsOverlap(root, a.config.DataDir) {
+		return fmt.Errorf("share directory and application data directory must not overlap")
 	}
-	if !info.IsDir() {
-		return fmt.Errorf("shared path is not a directory")
+	tempDir := filepath.Join(root, ".wifi-share-tmp")
+	if err := os.MkdirAll(tempDir, 0o700); err != nil {
+		return fmt.Errorf("create upload temporary directory: %w", err)
 	}
+	_ = cleanupStaleUploads(tempDir, time.Now())
 	a.rootM.Lock()
 	a.root = root
+	a.tempDir = tempDir
 	a.rootM.Unlock()
 	return nil
 }

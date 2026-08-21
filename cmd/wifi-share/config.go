@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"strings"
 )
@@ -19,7 +18,7 @@ type localConfig struct {
 
 func loadLocalConfig(path string) (localConfig, error) {
 	config := localConfig{
-		Address: ":8080",
+		Address: "127.0.0.1:8080",
 		Root:    "./shared",
 		Data:    "./data",
 		Web:     "./web/dist",
@@ -50,34 +49,13 @@ func saveLocalConfig(path string, config localConfig) error {
 }
 
 func accessURLs(address string) []string {
-	_, port, err := net.SplitHostPort(address)
+	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil
 	}
-	result := []string{"http://localhost:" + port}
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return result
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		host = "localhost"
 	}
-	for _, networkInterface := range interfaces {
-		if networkInterface.Flags&net.FlagUp == 0 || networkInterface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		addresses, err := networkInterface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, item := range addresses {
-			parsed, err := url.Parse("http://" + item.String())
-			if err != nil {
-				continue
-			}
-			ip := net.ParseIP(parsed.Hostname())
-			if ip == nil || ip.To4() == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-				continue
-			}
-			result = append(result, "http://"+net.JoinHostPort(ip.String(), port))
-		}
-	}
-	return result
+	return []string{"http://" + net.JoinHostPort(host, port)}
 }

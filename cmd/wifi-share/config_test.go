@@ -37,7 +37,7 @@ func TestLoadLocalConfigRequiresPassword(t *testing.T) {
 }
 
 func TestAccessURLsContainsLocalhost(t *testing.T) {
-	urls := accessURLs(":9090")
+	urls := accessURLs("127.0.0.1:9090")
 	if len(urls) == 0 || urls[0] != "http://localhost:9090" {
 		t.Fatalf("unexpected URLs: %#v", urls)
 	}

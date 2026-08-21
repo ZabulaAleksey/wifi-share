@@ -51,6 +51,9 @@ function uploadFile(
 }
 
 export const api = {
+	health() {
+		return request<{ status: "ok"; address: string }>("/api/health");
+	},
   list(parent = "root") {
     return request<FileListing>(`/api/files?parent=${encodeURIComponent(parent)}`);
   },

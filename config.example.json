@@ -1,5 +1,5 @@
 {
-  "address": ":8080",
+  "address": "127.0.0.1:8080",
   "root": "C:\\Users\\Public\\Shared files",
   "data": "./data",
   "web": "./web/dist",
