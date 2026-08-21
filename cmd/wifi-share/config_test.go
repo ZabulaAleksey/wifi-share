@@ -42,3 +42,10 @@ func TestAccessURLsContainsLocalhost(t *testing.T) {
 		t.Fatalf("unexpected URLs: %#v", urls)
 	}
 }
+
+func TestAccessURLsForWildcardIncludesLocalhost(t *testing.T) {
+	urls := accessURLs("0.0.0.0:9090")
+	if len(urls) == 0 || urls[0] != "http://localhost:9090" {
+		t.Fatalf("unexpected URLs: %#v", urls)
+	}
+}

@@ -73,15 +73,27 @@ func TestNewRejectsOverlappingShareAndDataDirectories(t *testing.T) {
 	}
 }
 
-func TestNewRejectsWildcardListenAddress(t *testing.T) {
+func TestNewRejectsImplicitWildcardListenAddress(t *testing.T) {
 	base := t.TempDir()
 	_, err := New(Config{
 		Address: ":8080", ShareDir: filepath.Join(base, "shared"), DataDir: filepath.Join(base, "data"),
 		WebDir: filepath.Join(base, "web"), Password: "password",
 	})
-	if err == nil || !strings.Contains(err.Error(), "wildcard") {
+	if err == nil || !strings.Contains(err.Error(), "explicit host") {
 		t.Fatalf("expected wildcard address to be rejected, got %v", err)
 	}
+}
+
+func TestNewAllowsExplicitWildcardListenAddress(t *testing.T) {
+	base := t.TempDir()
+	instance, err := New(Config{
+		Address: "0.0.0.0:8080", ShareDir: filepath.Join(base, "shared"), DataDir: filepath.Join(base, "data"),
+		WebDir: filepath.Join(base, "web"), Password: "password",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer instance.Close()
 }
 
 func TestNewRejectsDynamicListenPort(t *testing.T) {

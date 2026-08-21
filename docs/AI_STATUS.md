@@ -2,7 +2,7 @@
 
 ## Актуализация: Этап A — базовая безопасность
 
-- Реализованы и покрыты Go-тестами: private/loopback bind без wildcard/port `0`, изоляция `root` и `data`, лимиты request/file/count/concurrency, квота 10 GiB и Windows free-space reserve, пяти минутные read/write timeouts, атомарная загрузка через скрытый temporary directory, stale cleanup, collision protection, CSP/`nosniff` и attachment для всех типов кроме консервативного inline allowlist.
+- Реализованы и покрыты Go-тестами: private/loopback bind и явный opt-in `0.0.0.0` для доверенной LAN, запрет неявного wildcard/port `0`, изоляция `root` и `data`, лимиты request/file/count/concurrency, квота 10 GiB и Windows free-space reserve, пяти минутные read/write timeouts, атомарная загрузка через скрытый temporary directory, stale cleanup, collision protection, CSP/`nosniff` и attachment для всех типов кроме консервативного inline allowlist.
 - Cookie-мутаторы требуют exact `Origin`; login получает rate limit, TTL cleanup и bounded in-memory registry. Cookie получает `Secure` при HTTPS.
 - UI отображает подтверждённый bind address через `/api/health`; документация требует явного private LAN address для доступа из Wi-Fi.
 - Проверки: `go test ./...` проходит; `npm run build` в `web/` проходит. `npm run lint` блокирован отсутствующим `eslint.config.*` для ESLint 9 (pre-existing tooling gap). Живой multi-device Wi-Fi E2E имеет статус `BLOCKED_BY_BACKEND_WIFI_SHARE` без стенда из двух устройств.

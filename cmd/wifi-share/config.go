@@ -53,6 +53,30 @@ func accessURLs(address string) []string {
 	if err != nil {
 		return nil
 	}
+	if host == "0.0.0.0" {
+		result := []string{"http://localhost:" + port}
+		interfaces, err := net.Interfaces()
+		if err != nil {
+			return result
+		}
+		for _, networkInterface := range interfaces {
+			if networkInterface.Flags&net.FlagUp == 0 || networkInterface.Flags&net.FlagLoopback != 0 {
+				continue
+			}
+			addresses, err := networkInterface.Addrs()
+			if err != nil {
+				continue
+			}
+			for _, address := range addresses {
+				ip, _, err := net.ParseCIDR(address.String())
+				if err != nil || ip == nil || !ip.IsPrivate() {
+					continue
+				}
+				result = append(result, "http://"+net.JoinHostPort(ip.String(), port))
+			}
+		}
+		return result
+	}
 	ip := net.ParseIP(host)
 	if ip != nil && ip.IsLoopback() {
 		host = "localhost"

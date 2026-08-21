@@ -167,15 +167,18 @@ func validateListenAddress(address string) error {
 		return fmt.Errorf("invalid listen address: %w", err)
 	}
 	if host == "" {
-		return errors.New("wildcard listen address is unsafe; bind to localhost or a private LAN address")
+		return errors.New("listen address must include an explicit host")
 	}
 	portNumber, err := strconv.Atoi(port)
 	if err != nil || portNumber < 1 || portNumber > 65535 {
 		return errors.New("listen port must be between 1 and 65535")
 	}
 	ip := net.ParseIP(host)
+	if host == "0.0.0.0" {
+		return nil // Explicit opt-in to all IPv4 interfaces for a trusted LAN.
+	}
 	if !strings.EqualFold(host, "localhost") && (ip == nil || (!ip.IsLoopback() && !ip.IsPrivate())) {
-		return errors.New("listen address must be localhost or a private LAN address")
+		return errors.New("listen address must be localhost, 0.0.0.0, or a private LAN address")
 	}
 	return nil
 }
