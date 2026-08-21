@@ -9,10 +9,14 @@ import (
 	"io"
 	"log"
 	"mime"
+	"mime/multipart"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +25,15 @@ import (
 )
 
 const rootID = "root"
+
+const (
+	maxUploadRequestBytes = 256 << 20
+	maxUploadFileBytes    = 128 << 20
+	maxUploadFiles        = 16
+	maxShareBytes         = 10 << 30
+	minFreeDiskBytes      = 1 << 30
+	staleUploadAge        = 24 * time.Hour
+)
 
 type Config struct {
 	Address  string
@@ -31,15 +44,20 @@ type Config struct {
 }
 
 type App struct {
-	config   Config
-	root     string
-	rootM    sync.RWMutex
-	db       *sql.DB
-	server   *http.Server
-	handler  http.Handler
-	sessions map[string]time.Time
-	sessionM sync.RWMutex
-	trashFn  func(string) error
+	config              Config
+	root                string
+	tempDir             string
+	rootM               sync.RWMutex
+	db                  *sql.DB
+	server              *http.Server
+	handler             http.Handler
+	sessions            map[string]time.Time
+	sessionM            sync.RWMutex
+	trashFn             func(string) error
+	uploads             chan struct{}
+	uploadM             sync.Mutex
+	quotaM              sync.Mutex
+	reservedUploadBytes int64
 }
 
 type fileDTO struct {
@@ -56,18 +74,28 @@ func New(config Config) (*App, error) {
 	if strings.TrimSpace(config.Password) == "" {
 		return nil, errors.New("password is required; set it in config.local.json")
 	}
-	root, err := filepath.Abs(config.ShareDir)
-	if err != nil {
+	if err := validateListenAddress(config.Address); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	root, err := canonicalDirectory(config.ShareDir)
+	if err != nil {
 		return nil, fmt.Errorf("create share directory: %w", err)
 	}
-	if err := os.MkdirAll(config.DataDir, 0o755); err != nil {
+	data, err := canonicalDirectory(config.DataDir)
+	if err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
+	if pathsOverlap(root, data) {
+		return nil, errors.New("share directory and application data directory must not overlap")
+	}
+	config.ShareDir, config.DataDir = root, data
+	tempDir := filepath.Join(root, ".wifi-share-tmp")
+	if err := os.MkdirAll(tempDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create upload temporary directory: %w", err)
+	}
+	_ = cleanupStaleUploads(tempDir, time.Now())
 
-	db, err := sql.Open("sqlite", filepath.Join(config.DataDir, "wifi-share.db"))
+	db, err := sql.Open("sqlite", filepath.Join(data, "wifi-share.db"))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -86,15 +114,16 @@ func New(config Config) (*App, error) {
 	}
 
 	app := &App{
-		config: config, root: root, db: db,
+		config: config, root: root, tempDir: tempDir, db: db,
 		sessions: make(map[string]time.Time),
 		trashFn:  moveToSystemTrash,
+		uploads:  make(chan struct{}, 2),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", app.health)
 	mux.HandleFunc("GET /api/auth/status", app.authStatus)
 	mux.HandleFunc("POST /api/auth/login", app.login)
-	mux.HandleFunc("DELETE /api/auth/session", app.logout)
+	mux.Handle("DELETE /api/auth/session", app.requireAuth(http.HandlerFunc(app.logout)))
 	mux.HandleFunc("GET /api/files", app.listFiles)
 	mux.Handle("POST /api/files/{id}/upload", app.requireAuth(http.HandlerFunc(app.upload)))
 	mux.Handle("POST /api/files/{id}/folders", app.requireAuth(http.HandlerFunc(app.createFolder)))
@@ -109,6 +138,8 @@ func New(config Config) (*App, error) {
 		Addr:              config.Address,
 		Handler:           app.handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		WriteTimeout:      5 * time.Minute,
 		IdleTimeout:       90 * time.Second,
 	}
 	return app, nil
@@ -127,7 +158,29 @@ func (a *App) ListenAndServe() error {
 }
 
 func (a *App) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "address": a.config.Address})
+}
+
+func validateListenAddress(address string) error {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("invalid listen address: %w", err)
+	}
+	if host == "" {
+		return errors.New("listen address must include an explicit host")
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return errors.New("listen port must be between 1 and 65535")
+	}
+	ip := net.ParseIP(host)
+	if host == "0.0.0.0" {
+		return nil // Explicit opt-in to all IPv4 interfaces for a trusted LAN.
+	}
+	if !strings.EqualFold(host, "localhost") && (ip == nil || (!ip.IsLoopback() && !ip.IsPrivate())) {
+		return errors.New("listen address must be localhost, 0.0.0.0, or a private LAN address")
+	}
+	return nil
 }
 
 func (a *App) listFiles(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +201,9 @@ func (a *App) listFiles(w http.ResponseWriter, r *http.Request) {
 
 	files := make([]fileDTO, 0, len(entries))
 	for _, entry := range entries {
+		if isReservedName(entry.Name()) {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -180,20 +236,45 @@ func (a *App) listFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) upload(w http.ResponseWriter, r *http.Request) {
+	select {
+	case a.uploads <- struct{}{}:
+		defer func() { <-a.uploads }()
+	default:
+		writeError(w, http.StatusTooManyRequests, errors.New("too many uploads are already running"))
+		return
+	}
 	dir, rel, err := a.resolve(r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := r.ParseMultipartForm(64 << 20); err != nil {
-		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid multipart upload: %w", err))
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBytes)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		if errors.Is(err, http.ErrBodyReadAfterClose) {
+			writeError(w, http.StatusBadRequest, errors.New("invalid multipart upload"))
+		} else {
+			writeError(w, http.StatusRequestEntityTooLarge, errors.New("upload request exceeds the configured limit"))
+		}
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	headers := r.MultipartForm.File["files"]
-	if len(headers) == 0 {
+	if len(headers) == 0 || len(headers) > maxUploadFiles {
 		writeError(w, http.StatusBadRequest, errors.New("multipart field 'files' is required"))
 		return
 	}
+	for _, header := range headers {
+		if header.Size < 0 || header.Size > maxUploadFileBytes {
+			writeError(w, http.StatusRequestEntityTooLarge, errors.New("an uploaded file exceeds the configured limit"))
+			return
+		}
+	}
+	reserved, err := a.reserveUploadSpace(headers)
+	if err != nil {
+		writeError(w, http.StatusInsufficientStorage, err)
+		return
+	}
+	defer a.releaseUploadSpace(reserved)
 
 	created := make([]fileDTO, 0, len(headers))
 	for _, header := range headers {
@@ -208,18 +289,63 @@ func (a *App) upload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		targetPath := filepath.Join(dir, name)
-		target, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-		if err != nil {
+		if _, err := os.Lstat(targetPath); err == nil {
 			source.Close()
-			writeError(w, http.StatusConflict, err)
+			writeError(w, http.StatusConflict, errors.New("a file with this name already exists"))
+			return
+		} else if !errors.Is(err, os.ErrNotExist) {
+			source.Close()
+			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		_, copyErr := io.Copy(target, source)
+		target, err := os.CreateTemp(a.tempDir, "upload-*")
+		if err != nil {
+			source.Close()
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		tempPath := target.Name()
+		_, copyErr := io.Copy(target, io.LimitReader(source, maxUploadFileBytes+1))
+		if copyErr == nil {
+			if info, err := target.Stat(); err != nil || info.Size() > maxUploadFileBytes {
+				copyErr = errors.New("an uploaded file exceeds the configured limit")
+			}
+		}
+		syncErr := target.Sync()
 		closeErr := target.Close()
 		source.Close()
-		if copyErr != nil || closeErr != nil {
-			os.Remove(targetPath)
-			writeError(w, http.StatusInternalServerError, errors.Join(copyErr, closeErr))
+		if copyErr != nil || syncErr != nil || closeErr != nil {
+			_ = os.Remove(tempPath)
+			if copyErr != nil && strings.Contains(copyErr.Error(), "configured limit") {
+				writeError(w, http.StatusRequestEntityTooLarge, copyErr)
+			} else {
+				writeError(w, http.StatusInternalServerError, errors.Join(copyErr, syncErr, closeErr))
+			}
+			return
+		}
+		a.uploadM.Lock()
+		_, destinationErr := os.Lstat(targetPath)
+		if destinationErr == nil {
+			a.uploadM.Unlock()
+			_ = os.Remove(tempPath)
+			writeError(w, http.StatusConflict, errors.New("a file with this name already exists"))
+			return
+		}
+		if !errors.Is(destinationErr, os.ErrNotExist) {
+			a.uploadM.Unlock()
+			_ = os.Remove(tempPath)
+			writeError(w, http.StatusInternalServerError, destinationErr)
+			return
+		}
+		err = os.Rename(tempPath, targetPath)
+		a.uploadM.Unlock()
+		if err != nil {
+			_ = os.Remove(tempPath)
+			if errors.Is(err, os.ErrExist) {
+				writeError(w, http.StatusConflict, errors.New("a file with this name already exists"))
+			} else {
+				writeError(w, http.StatusInternalServerError, err)
+			}
 			return
 		}
 		info, _ := os.Stat(targetPath)
@@ -314,8 +440,13 @@ func (a *App) getContent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, errors.New("content is only available for files"))
 		return
 	}
-	w.Header().Set("Content-Type", mimeFor(info.Name(), false))
-	w.Header().Set("Content-Disposition", `inline; filename*=UTF-8''`+urlPathEscape(info.Name()))
+	contentType := mimeFor(info.Name(), false)
+	w.Header().Set("Content-Type", contentType)
+	disposition := "inline"
+	if !safeInlineContentType(contentType) {
+		disposition = "attachment"
+	}
+	w.Header().Set("Content-Disposition", disposition+`; filename*=UTF-8''`+url.PathEscape(info.Name()))
 	http.ServeContent(w, r, info.Name(), info.ModTime(), file)
 }
 
@@ -389,10 +520,93 @@ func (a *App) resolve(id string) (string, string, error) {
 	if !within(root, candidate) {
 		return "", "", errors.New("path escapes the shared directory")
 	}
+	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
+		if isReservedName(part) {
+			return "", "", errors.New("path is reserved for application use")
+		}
+	}
 	if evaluated, err := filepath.EvalSymlinks(candidate); err == nil && !within(root, evaluated) {
 		return "", "", errors.New("symbolic link escapes the shared directory")
 	}
 	return candidate, rel, nil
+}
+
+func canonicalDirectory(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(abs, 0o755); err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(abs)
+}
+
+func pathsOverlap(first, second string) bool {
+	return within(first, second) || within(second, first)
+}
+
+func cleanupStaleUploads(root string, now time.Time) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasPrefix(entry.Name(), "upload-") {
+			return err
+		}
+		info, err := entry.Info()
+		if err == nil && now.Sub(info.ModTime()) > staleUploadAge {
+			return os.Remove(path)
+		}
+		return err
+	})
+}
+
+func (a *App) reserveUploadSpace(headers []*multipart.FileHeader) (int64, error) {
+	var requested int64
+	for _, header := range headers {
+		requested += header.Size
+	}
+	used, err := directorySize(a.root)
+	if err != nil {
+		return 0, err
+	}
+	free, err := availableDiskBytes(a.root)
+	if err != nil {
+		return 0, err
+	}
+	a.quotaM.Lock()
+	defer a.quotaM.Unlock()
+	if requested > maxShareBytes-used-a.reservedUploadBytes {
+		return 0, errors.New("the shared-folder quota would be exceeded")
+	}
+	if requested > free-minFreeDiskBytes-a.reservedUploadBytes {
+		return 0, errors.New("not enough free disk space for this upload")
+	}
+	a.reservedUploadBytes += requested
+	return requested, nil
+}
+
+func (a *App) releaseUploadSpace(bytes int64) {
+	a.quotaM.Lock()
+	a.reservedUploadBytes -= bytes
+	a.quotaM.Unlock()
+}
+
+func directorySize(root string) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(root, func(_ string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		total += info.Size()
+		return nil
+	})
+	return total, err
 }
 
 func (a *App) audit(action, id string, details any) {
@@ -438,7 +652,7 @@ func within(root, candidate string) bool {
 func safeName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || name == "." || name == ".." || filepath.Base(name) != name ||
-		strings.ContainsAny(name, `/\`) {
+		strings.ContainsAny(name, `/\`) || isReservedName(name) {
 		return "", errors.New("invalid file name")
 	}
 	return name, nil
@@ -452,6 +666,21 @@ func mimeFor(name string, directory bool) string {
 		return value
 	}
 	return "application/octet-stream"
+}
+
+func isReservedName(name string) bool {
+	return strings.HasPrefix(name, ".wifi-share-")
+}
+
+func safeInlineContentType(value string) bool {
+	contentType, _, err := mime.ParseMediaType(value)
+	if err != nil || contentType == "image/svg+xml" {
+		return false
+	}
+	return strings.HasPrefix(contentType, "audio/") ||
+		strings.HasPrefix(contentType, "video/") ||
+		strings.HasPrefix(contentType, "image/") ||
+		contentType == "application/pdf" || contentType == "text/plain"
 }
 
 func decodeJSON(r *http.Request, target any) error {
@@ -470,11 +699,6 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 
-func urlPathEscape(value string) string {
-	replacer := strings.NewReplacer(" ", "%20", "#", "%23", "?", "%3F")
-	return replacer.Replace(value)
-}
-
 func requestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -488,6 +712,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; style-src 'self' 'unsafe-inline'")
 		next.ServeHTTP(w, r)
 	})
 }
