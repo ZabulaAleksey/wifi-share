@@ -1,5 +1,12 @@
 # Состояние WiFi Share
 
+## Governance migration — 2026-08-24
+
+- Security stage объединён в `prompts/STAGES.md`; project overlay — PASS.
+- `go test ./...` — PASS с изолированными TMP/GOCACHE; frontend production build — PASS.
+- Frontend lint — FAIL: repository использует ESLint 9, но не содержит `eslint.config.js`; автоматическая config migration не выполнялась.
+- Репозиторий находится в `~/codex-workspace/wifi-share`; push/merge не выполнялись.
+
 ## Актуализация: Этап A — базовая безопасность
 
 - Реализованы и покрыты Go-тестами: private/loopback bind и явный opt-in `0.0.0.0` для доверенной LAN, запрет неявного wildcard/port `0`, изоляция `root` и `data`, лимиты request/file/count/concurrency, квота 10 GiB и Windows free-space reserve, пяти минутные read/write timeouts, атомарная загрузка через скрытый temporary directory, stale cleanup, collision protection, CSP/`nosniff` и attachment для всех типов кроме консервативного inline allowlist.
