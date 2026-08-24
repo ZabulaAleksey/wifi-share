@@ -7,6 +7,7 @@ shared/
 *.exe
 *.exe~
 *.log
+pnpm-debug.log*
 .DS_Store
 
 

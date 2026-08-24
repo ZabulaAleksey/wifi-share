@@ -1,3 +1,19 @@
+# Этапы WiFi Share
+
+## Этап 1 — security baseline
+
+Сохранить требования исходного security prompt: безопасная конфигурация, проверка путей, ограничение LAN-поведения и отсутствие секретов в логах.
+
+DoD: `go test ./...`, frontend lint/build и отрицательные сценарии доступа дают зафиксированный evidence.
+
+## Этап 2 — peer/session flow
+
+Проверить discovery peer, создание stream-сессии и корректное завершение при разрыве соединения.
+
+DoD: backend/frontend контракты согласованы, ошибки и cleanup покрыты тестами.
+
+## ����������� ���� � security baseline
+
 # Этап A — Базовая безопасность
 
 ## Требования
@@ -15,7 +31,7 @@
 ## Проверки
 
 - `go test ./...`;
-- `npm run lint` и `npm run build` в `web/`;
+- `pnpm lint` и `pnpm build` в `web/`;
 - сценарии этапа A из `docs/TESTING.md`.
 
 ## Definition of Done

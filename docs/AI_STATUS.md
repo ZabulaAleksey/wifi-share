@@ -1,11 +1,20 @@
 # Состояние WiFi Share
 
+## Governance migration — 2026-08-24
+
+- Security stage объединён в `prompts/STAGES.md`; project overlay — PASS.
+- `go test ./...` — PASS с изолированными TMP/GOCACHE; frontend production build — PASS.
+- Frontend lint — FAIL: repository использует ESLint 9, но не содержит `eslint.config.js`; автоматическая config migration не выполнялась.
+- Репозиторий находится в `~/codex-workspace/wifi-share`; dependency-manager migration локально интегрирована в `main`, push не выполнялся.
+
 ## Актуализация: Этап A — базовая безопасность
 
 - Реализованы и покрыты Go-тестами: private/loopback bind и явный opt-in `0.0.0.0` для доверенной LAN, запрет неявного wildcard/port `0`, изоляция `root` и `data`, лимиты request/file/count/concurrency, квота 10 GiB и Windows free-space reserve, пяти минутные read/write timeouts, атомарная загрузка через скрытый temporary directory, stale cleanup, collision protection, CSP/`nosniff` и attachment для всех типов кроме консервативного inline allowlist.
 - Cookie-мутаторы требуют exact `Origin`; login получает rate limit, TTL cleanup и bounded in-memory registry. Cookie получает `Secure` при HTTPS.
 - UI отображает подтверждённый bind address через `/api/health`; документация требует явного private LAN address для доступа из Wi-Fi.
-- Проверки: `go test ./...` проходит; `npm run build` в `web/` проходит. `npm run lint` блокирован отсутствующим `eslint.config.*` для ESLint 9 (pre-existing tooling gap). Живой multi-device Wi-Fi E2E имеет статус `BLOCKED_BY_BACKEND_WIFI_SHARE` без стенда из двух устройств.
+- Проверки: `go test ./...` проходит; clean restore и `pnpm build` в `web/` проходят. `pnpm lint` блокирован отсутствующим `eslint.config.*` для ESLint 9 (pre-existing tooling gap). Живой multi-device Wi-Fi E2E имеет статус `BLOCKED_BY_BACKEND_WIFI_SHARE` без стенда из двух устройств.
+- Dependency manager migration 2026-08-24: frontend использует `pnpm@11.23.0`, единственный `web/pnpm-lock.yaml` и global virtual store. Точечные overrides `brace-expansion@5.0.9`, `js-yaml@4.3.1`, `nanoid@3.3.18` устранили все найденные advisories; `pnpm audit` — PASS.
+- Frontend build сохраняет предупреждение о chunk `611.37 kB`; это pre-existing performance debt, не ошибка dependency restore.
 
 Этап A реализован в рабочей ветке и ожидает ручной E2E-проверки LAN; к этапу B не переходить без отдельной задачи.
 

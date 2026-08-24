@@ -1,6 +1,6 @@
 # WiFi Share — локальные инструкции
 
-Перед началом работы прочитай `~/codex-workspace/AGENTS.md`.
+Перед началом работы прочитай `~/.codex/AGENTS.md`.
 
 ## Контекст проекта
 
@@ -12,7 +12,8 @@
 ## Проверки
 
 - Backend: `go test ./...`
-- Frontend: из каталога `web/` выполни `npm run lint` и `npm run build`
+- Frontend: из каталога `web/` выполни `pnpm lint` и `pnpm build`
+- Канонический frontend package manager — `pnpm@11.23.0` с `web/pnpm-lock.yaml`; restore выполняется через `pnpm install --frozen-lockfile`. Общий store разрешён, `web/node_modules` disposable. При блокировке `pnpm.ps1` используй `pnpm.cmd`.
 
 Читай только относящиеся к задаче документы по архитектуре и безопасности и правила AI Dev Team; не загружай заранее все правила, файлы SPEC или `LEARNING_LOG.md`.
 
@@ -24,7 +25,7 @@
 
 ### Unit / integration / component
 - Backend: `go test ./...`
-- Frontend component/sanity: `cd web; npm run lint` и `cd web; npm run build`
+- Frontend component/sanity: `cd web; pnpm lint` и `cd web; pnpm build`
 - Интеграция API+frontend: запускать backend и frontend-проверки в одной итерации перед релизом.
 
 ### E2E (критические)

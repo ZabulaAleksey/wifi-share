@@ -730,7 +730,7 @@ func spaHandler(webDir string) http.Handler {
 		}
 		index := filepath.Join(webDir, "index.html")
 		if _, err := os.Stat(index); err != nil {
-			writeError(w, http.StatusServiceUnavailable, errors.New("web application is not built; run npm run build in web/"))
+			writeError(w, http.StatusServiceUnavailable, errors.New("web application is not built; run pnpm build in web/"))
 			return
 		}
 		http.ServeFile(w, r, index)

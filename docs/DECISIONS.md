@@ -1,5 +1,11 @@
 # Дополнительные архитектурные решения
 
+## ADR-000 — pnpm для frontend и общий content store
+
+**Статус:** принято 2026-08-24.
+
+Go modules остаются каноническими для backend. Для `web/` используется `pnpm@11.23.0` и единственный `pnpm-lock.yaml`; restore выполняется frozen, build scripts разрешаются только явным allowlist. Общий pnpm content store не меняет изоляцию Go-модулей и локальных runtime-данных.
+
 ## ADR-019 — fail-closed LAN bind и изолированные temporary uploads
 
 **Статус:** принято, этап A.
