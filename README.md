@@ -6,7 +6,7 @@
 
 - Go 1.25+
 - Node.js 20.19+ или 22.12+
-- npm
+- pnpm 11.23.0
 
 Готовый `wifi-share.exe` не требует установленных Go и Node.js.
 
@@ -78,8 +78,8 @@ WiFi Share is ready. Open one of these URLs:
 
 ```powershell
 cd web
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm build
 cd ..
 go test ./cmd/... ./internal/...
 go build -o wifi-share.exe ./cmd/wifi-share
@@ -97,8 +97,8 @@ go run ./cmd/wifi-share
 
 ```powershell
 cd web
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
 Откройте `http://localhost:5173`. Vite перенаправит API-запросы на Go-сервер с портом `8080`.

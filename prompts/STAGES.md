@@ -31,7 +31,7 @@ DoD: backend/frontend контракты согласованы, ошибки и
 ## Проверки
 
 - `go test ./...`;
-- `npm run lint` и `npm run build` в `web/`;
+- `pnpm lint` и `pnpm build` в `web/`;
 - сценарии этапа A из `docs/TESTING.md`.
 
 ## Definition of Done

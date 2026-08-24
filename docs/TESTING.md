@@ -5,8 +5,8 @@
 ```powershell
 go test ./...
 cd web
-npm run lint
-npm run build
+pnpm lint
+pnpm build
 ```
 
 ## Обязательная security regression suite
