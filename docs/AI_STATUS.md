@@ -5,7 +5,7 @@
 - Security stage объединён в `prompts/STAGES.md`; project overlay — PASS.
 - `go test ./...` — PASS с изолированными TMP/GOCACHE; frontend production build — PASS.
 - Frontend lint — FAIL: repository использует ESLint 9, но не содержит `eslint.config.js`; автоматическая config migration не выполнялась.
-- Репозиторий находится в `~/codex-workspace/wifi-share`; dependency-manager migration локально интегрирована в `main`, push не выполнялся.
+- Репозиторий находится в `${PROJECTS_ROOT}/wifi-share` (локальный default: `~/wifi-share`); dependency-manager migration интегрирована и опубликована в `main`.
 
 ## Актуализация: Этап A — базовая безопасность
 
