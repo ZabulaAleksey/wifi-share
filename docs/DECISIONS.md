@@ -1,5 +1,16 @@
 # Дополнительные архитектурные решения
 
+## ADR-020 — единый execution-state owner
+
+**Статус:** принято для migration branch.
+
+`docs/STAGES.md` владеет единственным текущим stage/status/NEXT и
+проверенным evidence. `docs/ROADMAP.md` задаёт будущие фазы,
+`docs/SPECIFICATION.md` — требования. Старые AI plan/status и
+`prompts/STAGES.md` сохраняются в Git parent с hash/evidence archive;
+их conflicting claims не повышают Stage A до completed. Formal DEV bridge
+не включается перемещением файлов.
+
 ## ADR-000 — pnpm для frontend и общий content store
 
 **Статус:** принято 2026-08-24.
