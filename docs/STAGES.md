@@ -47,14 +47,12 @@ login/Origin, upload/download и отказом для неразрешённо�
   разрешённой папки. Ожидаемое evidence: адреса без credentials,
   результаты запросов и локальный test log с PASS/FAIL; это разблокирует
   terminal LAN E2E gate для Stage A. Не публиковать сервер в internet.
-- `USER-WFS-STAGES-INTEGRATION` — `PENDING`, condition: isolated
-  `feature/docs-stages-canonical` commit/push, compatibility matrix и
-  проверки готовы. Действие: разрешить merge этой точной ветки в `main`
-  после review сохранённых AI-фактов и unchanged product code/tests.
-  Ожидаемое evidence: clean main ancestry и GitHub read-back с
-  `docs/STAGES.md` без `prompts/STAGES.md`, `docs/AI_PLAN.md`,
-  `docs/AI_STATUS.md`; canonical adapter возвращает `partial` и
-  `WFS-SECURITY-BASELINE-VERIFY`. Это разблокирует единый state owner.
+- `USER-WFS-STAGES-INTEGRATION` — `DONE`: пользователь разрешил merge
+  `feature/docs-stages-canonical`; `main` fast-forward до `9d43e0e` и
+  опубликован. GitHub read-back подтвердил только `docs/STAGES.md` из
+  четырёх state paths. Go tests, frontend build и canonical adapter
+  повторно прошли; Stage A остаётся `partial`, NEXT —
+  `WFS-SECURITY-BASELINE-VERIFY`.
 
 ## WFS-TRANSFER-RELIABILITY — Этап B: надёжная передача
 
